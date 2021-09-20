@@ -47,7 +47,7 @@ func init() {
 	log.SetPrefix("* ")
 
 	flags = pflag.NewFlagSet("kubectl curl", pflag.ExitOnError)
-	flags.BoolVarP(&help, "help", "h", false, "Prints the kubectl pprof help.")
+	flags.BoolVarP(&help, "help", "h", false, "Prints the kubectl plugin help.")
 	flags.BoolVarP(&debug, "debug", "", false, "Enable debug mode to print more details about the kubectl command execution.")
 
 	for _, opt := range curlOptions {
@@ -81,7 +81,7 @@ func main() {
 	defer stop()
 
 	if err := run(ctx); err != nil {
-		fmt.Fprintf(os.Stderr, "* ERROR: %s", err)
+		fmt.Fprintf(os.Stderr, "* ERROR: %s\n", err)
 		os.Exit(1)
 	}
 }
