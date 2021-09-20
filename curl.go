@@ -186,8 +186,7 @@ func run(ctx context.Context) error {
 
 	f, err := openPortForwarder(ctx, portForwarderConfig{
 		config:     restConfig,
-		namespace:  namespace,
-		podName:    podName,
+		pod:        pod,
 		localPort:  localPort,
 		remotePort: remotePort,
 		stdout:     stdout,
@@ -262,8 +261,7 @@ func selectContainerPort(pod *corev1.Pod, containerName, portName string) (selec
 
 type portForwarderConfig struct {
 	config     *rest.Config
-	namespace  string
-	podName    string
+	pod        *corev1.Pod
 	localPort  int32
 	remotePort int32
 	stdout     io.Writer
@@ -277,7 +275,7 @@ func openPortForwarder(ctx context.Context, fwd portForwarderConfig) (*portforwa
 	}
 
 	host := strings.TrimLeft(fwd.config.Host, "htps:/")
-	path := fmt.Sprintf("/api/v1/namespaces/%s/pods/%s/portforward", fwd.namespace, fwd.podName)
+	path := fmt.Sprintf("/api/v1/namespaces/%s/pods/%s/portforward", fwd.pod.Namespace, fwd.pod.Name)
 
 	client := &http.Client{
 		Transport: transport,
