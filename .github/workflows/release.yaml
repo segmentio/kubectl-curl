@@ -46,7 +46,7 @@ jobs:
     - name: Build Windows AMD64
       run: GOOS=windows GOARCH=amd64 go build -o kubectl-curl_windows_amd64.exe
 
-    - name: Build WIndows ARM64
+    - name: Build Windows ARM64
       run: GOOS=windows GOARCH=arm64 go build -o kubectl-curl_windows_arm64.exe
 
     - name: Release
