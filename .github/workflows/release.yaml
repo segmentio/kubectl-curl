@@ -9,6 +9,10 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
+    - name: Version
+      id: version
+      run: echo ::set-output name=tag::${GITHUB_REF/refs\/tags\//}
+
     - name: Checkout
       uses: actions/checkout@v2
 
@@ -32,31 +36,31 @@ jobs:
       run: go mod download
 
     - name: Build Linux AMD64
-      run: GOOS=linux GOARCH=amd64 go build -o kubectl-curl_${{ github.ref }}_linux_amd64
+      run: GOOS=linux GOARCH=amd64 go build -o kubectl-curl_${{ steps.version.outputs.tag }}_linux_amd64
 
     - name: Build Linux ARM64
-      run: GOOS=linux GOARCH=arm64 go build -o kubectl-curl_${{ github.ref }}_linux_arm64
+      run: GOOS=linux GOARCH=arm64 go build -o kubectl-curl_${{ steps.version.outputs.tag }}_linux_arm64
 
     - name: Build Darwin AMD64
-      run: GOOS=darwin GOARCH=amd64 go build -o kubectl-curl_${{ github.ref }}_darwin_amd64
+      run: GOOS=darwin GOARCH=amd64 go build -o kubectl-curl_${{ steps.version.outputs.tag }}_darwin_amd64
 
     - name: Build Darwin ARM64
-      run: GOOS=darwin GOARCH=arm64 go build -o kubectl-curl_${{ github.ref }}_darwin_arm64
+      run: GOOS=darwin GOARCH=arm64 go build -o kubectl-curl_${{ steps.version.outputs.tag }}_darwin_arm64
 
     - name: Build Windows AMD64
-      run: GOOS=windows GOARCH=amd64 go build -o kubectl-curl_${{ github.ref }}_windows_amd64.exe
+      run: GOOS=windows GOARCH=amd64 go build -o kubectl-curl_${{ steps.version.outputs.tag }}_windows_amd64.exe
 
     - name: Build Windows ARM64
-      run: GOOS=windows GOARCH=arm64 go build -o kubectl-curl_${{ github.ref }}_windows_arm64.exe
+      run: GOOS=windows GOARCH=arm64 go build -o kubectl-curl_${{ steps.version.outputs.tag }}_windows_arm64.exe
 
     - name: Release
       uses: softprops/action-gh-release@v1
       with:
         files: |
           LICENSE
-          kubectl-curl_${{ github.ref }}_linux_amd64
-          kubectl-curl_${{ github.ref }}_linux_arm64
-          kubectl-curl_${{ github.ref }}_darwin_amd64
-          kubectl-curl_${{ github.ref }}_darwin_arm64
-          kubectl-curl_${{ github.ref }}_windows_amd64.exe
-          kubectl-curl_${{ github.ref }}_windows_arm64.exe
+          kubectl-curl_${{ steps.version.outputs.tag }}_linux_amd64
+          kubectl-curl_${{ steps.version.outputs.tag }}_linux_arm64
+          kubectl-curl_${{ steps.version.outputs.tag }}_darwin_amd64
+          kubectl-curl_${{ steps.version.outputs.tag }}_darwin_arm64
+          kubectl-curl_${{ steps.version.outputs.tag }}_windows_amd64.exe
+          kubectl-curl_${{ steps.version.outputs.tag }}_windows_arm64.exe
