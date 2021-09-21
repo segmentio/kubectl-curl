@@ -56,7 +56,7 @@ func (c *CipherList) Set(value string) error {
 
 func (c CipherList) Get() interface{} { return ([]string)(c) }
 func (c CipherList) String() string   { return strings.Join(([]string)(c), ":") }
-func (c CipherList) Type() string     { return "list of ciphers" }
+func (c CipherList) Type() string     { return "list-of-ciphers" }
 
 func cipherListOption(name, short string, defval []string, help string) Option {
 	return Option{Name: name, Help: help, Short: short, Value: NewCipherList(defval)}
