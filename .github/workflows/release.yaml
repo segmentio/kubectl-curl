@@ -8,7 +8,26 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+
+    env:
+      GOOS: ${{ matrix.os }}
+      GOARCH: ${{ matrix.arch }}
+
+    strategy:
+      matrix:
+        os:
+        - linux
+        - darwin
+        - windows
+        arch:
+        - amd64
+        - arm64
+
     steps:
+    - name: Version
+      id: version
+      run: echo ::set-output name=tag::${GITHUB_REF/refs\/tags\//}
+
     - name: Checkout
       uses: actions/checkout@v2
 
@@ -17,7 +36,7 @@ jobs:
       with:
         go-version: 1.17.1
 
-    - name: Cache Dependencies
+    - name: Cache Go
       uses: actions/cache@v2
       with:
         path: |
@@ -31,32 +50,28 @@ jobs:
       if: steps.cache-deps.outputs.cache-hit != 'true'
       run: go mod download
 
-    - name: Build Linux AMD64
-      run: GOOS=linux GOARCH=amd64 go build -o kubectl-curl_linux_amd64
+    - name: Build Artifacts
+      run: |
+        out=kubectl-curl_${{ steps.version.outputs.tag }}_${{ env.GOOS }}_${{ env.GOARCH }}
+        go build -o $out
+        tar czf $out.tar.gz $out LICENSE
 
-    - name: Build Linux ARM64
-      run: GOOS=linux GOARCH=arm64 go build -o kubectl-curl_linux_arm64
+    - name: Upload Artifacts
+      uses: actions/upload-artifact@v2
+      with:
+        name: kubectl-curl_${{ steps.version.outputs.tag }}_${{ env.GOOS }}_${{ env.GOARCH }}
+        path: kubectl-curl_${{ steps.version.outputs.tag }}_${{ env.GOOS }}_${{ env.GOARCH }}.tar.gz
 
-    - name: Build Darwin AMD64
-      run: GOOS=darwin GOARCH=amd64 go build -o kubectl-curl_darwin_amd64
+  release:
+    runs-on: ubuntu-latest
+    needs: [build]
+    steps:
+    - name: Download Artifacts
+      uses: actions/download-artifact@v2
+      with:
+        path: .
 
-    - name: Build Darwin ARM64
-      run: GOOS=darwin GOARCH=arm64 go build -o kubectl-curl_darwin_arm64
-
-    - name: Build Windows AMD64
-      run: GOOS=windows GOARCH=amd64 go build -o kubectl-curl_windows_amd64.exe
-
-    - name: Build Windows ARM64
-      run: GOOS=windows GOARCH=arm64 go build -o kubectl-curl_windows_arm64.exe
-
-    - name: Release
+    - name: Release Artifacts
       uses: softprops/action-gh-release@v1
       with:
-        files: |
-          LICENSE
-          kubectl-curl_linux_amd64
-          kubectl-curl_linux_arm64
-          kubectl-curl_darwin_amd64
-          kubectl-curl_darwin_arm64
-          kubectl-curl_windows_amd64.exe
-          kubectl-curl_windows_arm64.exe
+        files: kubectl-curl_*/*
