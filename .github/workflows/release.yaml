@@ -21,7 +21,7 @@ jobs:
       with:
         go-version: 1.17.1
 
-    - name: Cache Dependencies
+    - name: Cache Go
       uses: actions/cache@v2
       with:
         path: |
@@ -53,14 +53,17 @@ jobs:
     - name: Build Windows ARM64
       run: GOOS=windows GOARCH=arm64 go build -o kubectl-curl_${{ steps.version.outputs.tag }}_windows_arm64.exe
 
+    - name: Generate Artifacts
+      run: for bin in kubectl-curl_*; do tar czf $bin.tar.gz $bin LICENSE; done
+
     - name: Release
       uses: softprops/action-gh-release@v1
       with:
         files: |
           LICENSE
-          kubectl-curl_${{ steps.version.outputs.tag }}_linux_amd64
-          kubectl-curl_${{ steps.version.outputs.tag }}_linux_arm64
-          kubectl-curl_${{ steps.version.outputs.tag }}_darwin_amd64
-          kubectl-curl_${{ steps.version.outputs.tag }}_darwin_arm64
-          kubectl-curl_${{ steps.version.outputs.tag }}_windows_amd64.exe
-          kubectl-curl_${{ steps.version.outputs.tag }}_windows_arm64.exe
+          kubectl-curl_${{ steps.version.outputs.tag }}_linux_amd64.tar.gz
+          kubectl-curl_${{ steps.version.outputs.tag }}_linux_arm64.tar.gz
+          kubectl-curl_${{ steps.version.outputs.tag }}_darwin_amd64.tar.gz
+          kubectl-curl_${{ steps.version.outputs.tag }}_darwin_arm64.tar.gz
+          kubectl-curl_${{ steps.version.outputs.tag }}_windows_amd64.exe.tar.gz
+          kubectl-curl_${{ steps.version.outputs.tag }}_windows_arm64.exe.tar.gz
