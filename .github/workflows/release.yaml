@@ -12,31 +12,39 @@ jobs:
     - name: Checkout
       uses: actions/checkout@v2
 
-    - name: Setup
+    - name: Setup Go
       uses: actions/setup-go@v2
       with:
         go-version: 1.17
 
-    - name: Cache
+    - name: Cache Dependencies
       id: cache
       uses: actions/cache@v2
       with:
         path: vendor
         key: deps
 
-    - name: Vendor
+    - name: Vendor Dependencies
       if: steps.cache.outputs.cache-hit != 'true'
       run: go mod vendor
 
-    - name: Build
-      run: |
-        go mod vendor
-        GOOS=linux   GOARCH=amd64 go build -o kubectl-curl_linux_amd64
-        #GOOS=linux   GOARCH=arm64 go build -o kubectl-curl_linux_arm64
-        #GOOS=darwin  GOARCH=amd64 go build -o kubectl-curl_darwin_amd64
-        #GOOS=darwin  GOARCH=arm64 go build -o kubectl-curl_darwin_arm64
-        #GOOS=windows GOARCH=amd64 go build -o kubectl-curl_windows_amd64.exe
-        #GOOS=windows GOARCH=arm64 go build -o kubectl-curl_windows_arm64.exe
+    - name: Build Linux AMD64
+      run: GOOS=linux GOARCH=amd64 go build -o kubectl-curl_linux_amd64
+
+    - name: Build Linux ARM64
+      run: GOOS=linux GOARCH=arm64 go build -o kubectl-curl_linux_arm64
+
+    - name: Build Darwin AMD64
+      run: GOOS=darwin GOARCH=amd64 go build -o kubectl-curl_darwin_amd64
+
+    - name: Build Darwin ARM64
+      run: GOOS=darwin GOARCH=arm64 go build -o kubectl-curl_darwin_arm64
+
+    - name: Build Windows AMD64
+      run: GOOS=windows GOARCH=amd64 go build -o kubectl-curl_windows_amd64.exe
+
+    - name: Build WIndows ARM64
+      run: GOOS=windows GOARCH=arm64 go build -o kubectl-curl_windows_arm64.exe
 
     - name: Release
       uses: softprops/action-gh-release@v1
