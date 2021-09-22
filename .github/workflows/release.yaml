@@ -53,7 +53,7 @@ jobs:
     - name: Build Artifacts
       run: |
         out=kubectl-curl_${{ steps.version.outputs.tag }}_${{ env.GOOS }}_${{ env.GOARCH }}
-        go build -o $out
+        CGO_ENABLED=0 go build -o $out
         tar czf $out.tar.gz $out LICENSE
 
     - name: Upload Artifacts
