@@ -115,16 +115,13 @@ func run(ctx context.Context) error {
 		return fmt.Errorf("too many arguments passed in the command line invocation of kubectl curl [URL] [container]")
 	}
 
+	if strings.Index(query, "://") < 0 {
+		query = "http://" + query
+	}
+
 	requestURL, err := url.Parse(query)
 	if err != nil {
 		return fmt.Errorf("malformed URL: %w", err)
-	}
-	switch requestURL.Scheme {
-	case "http", "https":
-	case "":
-		return fmt.Errorf("missing scheme in query URL: %s", query)
-	default:
-		return fmt.Errorf("unsupposed scheme in query URL: %s", query)
 	}
 
 	podName, podPort, err := net.SplitHostPort(requestURL.Host)
