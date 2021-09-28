@@ -16,7 +16,7 @@ curl options that were given on the command line.
 
 If `$GOPATH/bin` is in the `PATH`, the plugin can be installed with:
 ```
-$ go install github.com/segmentio/kubectl-curl
+$ go install github.com/segmentio/kubectl-curl@latest
 ```
 
 If it was installed properly, it will be visibile when listing kubectl plugins:
