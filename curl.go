@@ -32,11 +32,11 @@ import (
 var (
 	curlOptions = curl.NewOptionSet()
 
-	help   bool
-	debug  bool
-	usage  string
-	flags  *pflag.FlagSet
-	config *genericclioptions.ConfigFlags
+	help    bool
+	debug   bool
+	options string
+	flags   *pflag.FlagSet
+	config  *genericclioptions.ConfigFlags
 )
 
 func init() {
@@ -68,12 +68,15 @@ func init() {
 			short = ""
 		}
 
-		flags.VarP(opt.Value, name, short, opt.Help)
+		flag := flags.VarPF(opt.Value, name, short, opt.Help)
+		if curl.IsBoolFlag(opt.Value) {
+			flag.NoOptDefVal = "true"
+		}
 	}
 
 	config = genericclioptions.NewConfigFlags(false)
 	config.AddFlags(flags)
-	usage = flags.FlagUsages()
+	options = flags.FlagUsages()
 }
 
 func main() {
@@ -90,7 +93,7 @@ func run(ctx context.Context) error {
 	flags.Parse(os.Args[1:])
 
 	if help {
-		printUsage()
+		fmt.Print(usageAndOptions("Run curl against kubernetes pods"))
 		return nil
 	}
 
@@ -111,8 +114,10 @@ func run(ctx context.Context) error {
 		query, containerName = args[0], args[1]
 	case 1:
 		query = args[0]
+	case 0:
+		return usageError("not enough arguments passed in the command line invocation of kubectl curl")
 	default:
-		return fmt.Errorf("too many arguments passed in the command line invocation of kubectl curl [URL] [container]")
+		return usageError("too many arguments passed in the command line invocation of kubectl curl")
 	}
 
 	if strings.Index(query, "://") < 0 {
@@ -299,13 +304,22 @@ func openPortForwarder(ctx context.Context, fwd portForwarderConfig) (*portforwa
 	return portforward.New(dialer, ports, ctx.Done(), make(chan struct{}), fwd.stdout, fwd.stderr)
 }
 
-func printUsage() {
-	fmt.Printf(`Run curl against kubernetes pods
+type usageError string
+
+func (e usageError) Error() string {
+	return usage(string(e))
+}
+
+func usage(msg string) string {
+	return msg + `
 
 Usage:
   kubectl curl [options] URL [container]
+`
+}
 
+func usageAndOptions(msg string) string {
+	return usage(msg) + `
 Options:
-%s
-`, usage)
+` + options
 }

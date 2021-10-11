@@ -10,9 +10,14 @@ func NewBool(value bool) *Bool {
 }
 
 func (b *Bool) Set(value string) error {
-	v, err := strconv.ParseBool(value)
-	*b = Bool(v)
-	return err
+	if value == "" {
+		*b = true
+		return nil
+	} else {
+		v, err := strconv.ParseBool(value)
+		*b = Bool(v)
+		return err
+	}
 }
 
 func (b Bool) Get() interface{} { return bool(b) }
@@ -167,3 +172,7 @@ func formatInt64(i int64) string {
 	}
 	return strconv.FormatInt(i, 10)
 }
+
+var (
+	_ boolFlag = (*Bool)(nil)
+)
