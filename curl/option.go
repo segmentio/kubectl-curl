@@ -27,7 +27,7 @@ type Option struct {
 }
 
 func (opt *Option) String() string {
-	if isBoolFlag(opt.Value) {
+	if IsBoolFlag(opt.Value) {
 		if on, _ := opt.Value.Get().(bool); on {
 			return opt.Name
 		}
@@ -37,8 +37,8 @@ func (opt *Option) String() string {
 	return ""
 }
 
-func isBoolFlag(v Value) bool {
-	x, _ := v.(interface{ IsBoolFlag() bool })
+func IsBoolFlag(v Value) bool {
+	x, _ := v.(boolFlag)
 	return x != nil && x.IsBoolFlag()
 }
 
@@ -46,4 +46,8 @@ type Value interface {
 	flag.Value
 	flag.Getter
 	Type() string
+}
+
+type boolFlag interface {
+	IsBoolFlag() bool
 }
