@@ -74,4 +74,7 @@ jobs:
     - name: Release Artifacts
       uses: softprops/action-gh-release@v1
       with:
-        files: kubectl-curl_*/*
+        generate_release_notes: true
+        files: |
+          kubectl-curl_*/*
+          LICENSE
