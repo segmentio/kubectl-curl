@@ -21,7 +21,7 @@ func (b *Bool) Set(value string) error {
 }
 
 func (b Bool) Get() interface{} { return bool(b) }
-func (b Bool) Type() string     { return "" }
+func (b Bool) Type() string     { return "bool" }
 func (b Bool) String() string   { return strconv.FormatBool(bool(b)) }
 func (b Bool) IsBoolFlag() bool { return true }
 
