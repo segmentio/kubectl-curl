@@ -10,13 +10,13 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/exec"
 	"os/signal"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/segmentio/kubectl-curl/curl"
 	"github.com/spf13/pflag"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -27,6 +27,8 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/portforward"
 	"k8s.io/client-go/transport/spdy"
+
+	"github.com/segmentio/kubectl-curl/curl"
 )
 
 var (
@@ -36,6 +38,7 @@ var (
 	debug   bool
 	options string
 	flags   *pflag.FlagSet
+	cflags  *pflag.FlagSet
 	config  *genericclioptions.ConfigFlags
 )
 
@@ -48,8 +51,9 @@ func init() {
 
 	flags = pflag.NewFlagSet("kubectl curl", pflag.ExitOnError)
 	flags.BoolVarP(&help, "help", "h", false, "Prints the kubectl plugin help.")
-	flags.BoolVarP(&debug, "debug", "", false, "Enable debug mode to print more details about the kubectl command execution.")
-
+	flags.BoolVarP(&debug, "debug", "", false,
+		"Enable debug mode to print more details about the kubectl command execution.")
+	cflags = pflag.NewFlagSet("curl", pflag.ExitOnError) // curl-only FlagSet
 	for _, opt := range curlOptions {
 		name := strings.TrimPrefix(opt.Name, "--")
 		short := strings.TrimPrefix(opt.Short, "-")
@@ -69,13 +73,15 @@ func init() {
 		}
 
 		flag := flags.VarPF(opt.Value, name, short, opt.Help)
+		cflag := cflags.VarPF(opt.Value, name, short, opt.Help)
 		if curl.IsBoolFlag(opt.Value) {
 			flag.NoOptDefVal = "true"
+			cflag.NoOptDefVal = "true"
 		}
 	}
 
 	config = genericclioptions.NewConfigFlags(false)
-	config.AddFlags(flags)
+	config.AddFlags(flags) // adds k8s config flags to flags
 	options = flags.FlagUsages()
 }
 
@@ -90,7 +96,25 @@ func main() {
 }
 
 func run(ctx context.Context) error {
-	flags.Parse(os.Args[1:])
+	cArgs := make([]string, 0)
+	flags.ParseAll(os.Args[1:], func(flag *pflag.Flag, value string) error {
+		if flag.Name == "silent" {
+			return nil // --silent is added later to all curl arguments so don't add here
+		}
+
+		// if it's a curl flag, save the full name & value to pass as arguments later
+		found := cflags.Lookup(flag.Name)
+		if found != nil {
+			if flag.Value.Type() == "bool" {
+				cArgs = append(cArgs, "--"+flag.Name)
+			} else {
+				cArgs = append(cArgs, "--"+flag.Name)
+				cArgs = append(cArgs, value)
+			}
+		}
+
+		return flags.Set(flag.Name, value)
+	})
 
 	if help {
 		fmt.Print(usageAndOptions("Run curl against kubernetes pods"))
@@ -223,19 +247,34 @@ func run(ctx context.Context) error {
 	}
 
 	requestURL.Host = net.JoinHostPort("localhost", strconv.Itoa(int(localPort)))
-	options := append(curlOptions,
-		// The -s option is taken by -s,--server from the default kubectl
-		// configuration. Force --silent because we don't really need to
-		// print the dynamic progress view for the scenarios in which this
-		// plugin is useful for.
-		curl.Silent(true),
-	)
-	cmd := curl.Command(ctx, requestURL.String(), options...)
+	cArgs = append(cArgs, requestURL.String())
+	// The -s option is taken by -s,--server from the default kubectl
+	// configuration. Force --silent because we don't really need to
+	// print the dynamic progress view for the scenarios in which this
+	// plugin is useful for.
+	cArgs = append(cArgs, "--silent")
+
+	cmd := exec.CommandContext(ctx, "curl", cArgs...)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	log.Printf("curl %s", strings.Join(cmd.Args[1:], "\n\t"))
+	log.Printf("curl %s", prettyArgs(cmd.Args[1:]))
 	return cmd.Run()
+}
+
+func prettyArgs(slice []string) string {
+	out := ""
+	for i, s := range slice {
+		if strings.Contains(s, " ") {
+			out += fmt.Sprintf("%q", s) // add quotes when known
+		} else {
+			out += s
+		}
+		if i != len(slice)-1 {
+			out += " " // separate elements with space
+		}
+	}
+	return out
 }
 
 func selectContainerPort(pod *corev1.Pod, containerName, portName string) (selectedContainerName string, selectedContainerPort corev1.ContainerPort, err error) {
@@ -248,7 +287,8 @@ func selectContainerPort(pod *corev1.Pod, containerName, portName string) (selec
 				continue
 			}
 			if selectedContainerPort.Name != "" {
-				err = fmt.Errorf("pod %[1]s has multiple containers with a %[2]s port, use kubectl %[1]s [container] to specify which one to profile", pod.Name, portName)
+				err = fmt.Errorf("pod %[1]s has multiple containers with a %[2]s port, use kubectl %[1]s [container] to specify which one to profile",
+					pod.Name, portName)
 				return
 			}
 			selectedContainerName = container.Name
