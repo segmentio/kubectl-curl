@@ -113,11 +113,7 @@ func run(ctx context.Context) error {
 			}
 		}
 
-		err := flags.Set(flag.Name, value)
-		if err != nil {
-			return err
-		}
-		return nil
+		return flags.Set(flag.Name, value)
 	})
 
 	if help {
