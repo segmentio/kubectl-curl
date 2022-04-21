@@ -96,7 +96,9 @@ func main() {
 }
 
 func run(ctx context.Context) error {
-	cArgs := make([]string, 0)
+	cArgs := []string{
+		"--header", "User-Agent: kubectl-curl",
+	}
 	flags.ParseAll(os.Args[1:], func(flag *pflag.Flag, value string) error {
 		if flag.Name == "silent" {
 			return nil // --silent is added later to all curl arguments so don't add here
@@ -239,7 +241,7 @@ func run(ctx context.Context) error {
 		}
 	}()
 
-	log.Printf("waiting for port fowarding to be established")
+	log.Printf("waiting for port forwarding to be established")
 	select {
 	case <-f.Ready:
 	case <-ctx.Done():
