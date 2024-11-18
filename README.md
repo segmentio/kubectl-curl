@@ -45,7 +45,7 @@ This section records common use cases for this kubectl plugin.
 ### Collecting profiles of Go programs
 
 ```
-$ kubectl curl "http://{pod}/debug/pprof/profile?debug=1&seconds=10" > ./profile
+$ kubectl curl -o profile "http://{pod}/debug/pprof/profile?debug=1&seconds=10"
 $ go tool pprof -http :6060 ./profile
 ```
 
