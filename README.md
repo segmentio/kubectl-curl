@@ -33,7 +33,11 @@ The following compatible plugins are available:
 kubectl curl [options] URL [container]
 ```
 
-* In the URL, the host part must be the name of the pod to send the request to.
+* In the `URL`, the host part can be:
+    * **podName**: pod to send the request to
+    * a resource reference, such as **deployment/**deploymentName**: from this a random pod is selected to send the request to
+       * NOTE: other supported references: **statefulset**, **daemonset**
+       * NOTE: abbreviations are supported as well: **deploy**, **sts**, **ds**
 * If no port number is specified, the request will be sent to a `http` port.
 * If there are multiple containers with a `http` port, the name of the container
   to send to the request to must be specified after the URL.
