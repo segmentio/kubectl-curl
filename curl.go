@@ -246,7 +246,31 @@ func run(ctx context.Context) error {
 	log.Printf("kubectl get -n %s pod/%s", namespace, podName)
 	pod, err := client.CoreV1().Pods(namespace).Get(ctx, podName, metav1.GetOptions{})
 	if err != nil {
-		return err
+		if debug {
+			_, _ = fmt.Fprintf(os.Stderr, "Pod %q not found, attempting fallback to resource controllers...\n", podName)
+		}
+		// Try as deployment, statefulset, daemonset in order
+		fallbackTypes := []string{"deployment", "statefulset", "daemonset"}
+		var fallbackErr error
+		for _, fallbackType := range fallbackTypes {
+			pods, resolvedPodName, resErr := resolvePodFromResource(ctx, client, namespace, fallbackType, podName)
+			if resErr == nil && len(pods) > 0 {
+				if debug {
+					_, _ = fmt.Fprintf(os.Stderr, "Resolved %s/%s to pod/%s\n", fallbackType, podName, resolvedPodName)
+				}
+				podName = resolvedPodName
+				pod, err = client.CoreV1().Pods(namespace).Get(ctx, podName, metav1.GetOptions{})
+				break
+			} else if resErr != nil {
+				fallbackErr = resErr
+			}
+		}
+		if pod == nil || err != nil {
+			if fallbackErr != nil {
+				return fallbackErr
+			}
+			return err
+		}
 	}
 	if pod.Status.Phase != corev1.PodRunning {
 		return fmt.Errorf("unable to forward port because pod is not running. Current status=%v", pod.Status.Phase)
