@@ -33,9 +33,13 @@ The following compatible plugins are available:
 kubectl curl [options] URL [container]
 ```
 
-* In the URL, the host part must be the name of the pod to send the request to.
-* If no port number is specified, the request will be sent to a `http` port.
-* If there are multiple containers with a `http` port, the name of the container
+* In the `URL`, the host part can be:
+    * **podName**: pod to send the request to
+    * a resource reference, such as **deployment/deploymentName**. The request is sent to a random pod from this resource.
+       * NOTE: supported resources: **deployment**, **statefulset**, **daemonset**
+       * NOTE: supported abbreviations: **deploy**, **sts**, **ds**
+* If no port number is specified, the request will be sent to an `http` port.
+* If there are multiple containers with an `http` port, the name of the container
   to send to the request to must be specified after the URL.
 
 ## Examples
@@ -45,7 +49,7 @@ This section records common use cases for this kubectl plugin.
 ### Collecting profiles of Go programs
 
 ```
-$ kubectl curl "http://{pod}/debug/pprof/profile?debug=1&seconds=10" > ./profile
+$ kubectl curl "http://{podname}/debug/pprof/profile?debug=1&seconds=10" > ./profile
 $ go tool pprof -http :6060 ./profile
 ```
 
@@ -53,7 +57,24 @@ $ go tool pprof -http :6060 ./profile
 
 ### Retrieving prometheus metrics
 
+All of these variants work:
+
 ```
-$ kubectl curl http://{pod}/metrics
+$ kubectl curl http://{podname}/metrics
+...
+
+$ kubectl curl http://daemonset/{daemonsetname}/metrics
+...
+
+$ kubectl curl http://ds/{daemonsetname}/metrics
+...
+
+$ kubectl curl {podname}/metrics
+...
+
+$ kubectl curl daemonset/{daemonsetname}/metrics
+...
+
+$ kubectl curl ds/{daemonsetname}/metrics
 ...
 ```
