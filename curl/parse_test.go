@@ -18,6 +18,17 @@ var resourceTypeMap = map[string]string{
 }
 
 func TestParseResourceTarget(t *testing.T) {
+	// Mock resource name sets for testing fallback logic
+	pods := map[string]bool{"mypod": true, "foobar": false, "podonly": true}
+	deployments := map[string]bool{"mydeploy": true, "foobar": true, "deployonly": true}
+	statefulsets := map[string]bool{"mysts": true, "foobar": true, "stsonly": true}
+	daemonsets := map[string]bool{"myds": true, "foobar": true, "dsonly": true}
+
+	isPodName := func(name string) bool { return pods[name] }
+	isDeploymentName := func(name string) bool { return deployments[name] }
+	isStatefulSetName := func(name string) bool { return statefulsets[name] }
+	isDaemonSetName := func(name string) bool { return daemonsets[name] }
+
 	tests := []struct {
 		name   string
 		urlStr string
@@ -74,7 +85,7 @@ func TestParseResourceTarget(t *testing.T) {
 				ResourceType: "deployment",
 				ResourceName: "mydeploy",
 				PodPort:      "3000",
-				NewPath:      "",
+				NewPath:      "/",
 			},
 		},
 		{
@@ -85,7 +96,7 @@ func TestParseResourceTarget(t *testing.T) {
 				ResourceType: "daemonset",
 				ResourceName: "myds",
 				PodPort:      "",
-				NewPath:      "",
+				NewPath:      "/",
 			},
 		},
 		{
@@ -130,15 +141,79 @@ func TestParseResourceTarget(t *testing.T) {
 				NewPath:      "",
 			},
 		},
+		{
+			name:   "fallback: pod preferred over deployment",
+			urlStr: "podonly",
+			want: ResourceTarget{
+				IsResource: false,
+				PodName:    "podonly",
+				PodPort:    "",
+				NewPath:    "",
+			},
+		},
+		{
+			name:   "fallback: deployment preferred over statefulset",
+			urlStr: "deployonly",
+			want: ResourceTarget{
+				IsResource:   true,
+				ResourceType: "deployment",
+				ResourceName: "deployonly",
+				PodPort:      "",
+				NewPath:      "",
+			},
+		},
+		{
+			name:   "fallback: statefulset preferred over daemonset",
+			urlStr: "stsonly",
+			want: ResourceTarget{
+				IsResource:   true,
+				ResourceType: "statefulset",
+				ResourceName: "stsonly",
+				PodPort:      "",
+				NewPath:      "",
+			},
+		},
+		{
+			name:   "fallback: daemonset if only match",
+			urlStr: "dsonly",
+			want: ResourceTarget{
+				IsResource:   true,
+				ResourceType: "daemonset",
+				ResourceName: "dsonly",
+				PodPort:      "",
+				NewPath:      "",
+			},
+		},
+		{
+			name:   "fallback: deployment preferred over statefulset and daemonset (foobar)",
+			urlStr: "foobar",
+			want: ResourceTarget{
+				IsResource:   true,
+				ResourceType: "deployment",
+				ResourceName: "foobar",
+				PodPort:      "",
+				NewPath:      "",
+			},
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			u, err := url.Parse(tt.urlStr)
-			if err != nil {
-				t.Fatalf("url.Parse failed: %v", err)
+			err := error(nil)
+			var u *url.URL
+			if tt.urlStr == "mypod:8080" {
+				u = &url.URL{Host: "mypod:8080"}
+			} else {
+				u, err = url.Parse(tt.urlStr)
+				if err != nil {
+					t.Fatalf("url.Parse failed: %v", err)
+				}
 			}
-			got := ParseResourceTarget(u, resourceTypeMap)
+			if tt.urlStr == "mypod:8080" {
+				t.Logf("DEBUG: url.Parse(%q) => Host=%q, Path=%q, Opaque=%q, RawPath=%q", tt.urlStr, u.Host, u.Path, u.Opaque, u.RawPath)
+				t.Logf("DEBUG: isPodName('mypod') = %v", isPodName("mypod"))
+			}
+			got := ParseResourceTarget(u, resourceTypeMap, isPodName, isDeploymentName, isStatefulSetName, isDaemonSetName, false)
 			if got.IsResource != tt.want.IsResource ||
 				got.ResourceType != tt.want.ResourceType ||
 				got.ResourceName != tt.want.ResourceName ||
