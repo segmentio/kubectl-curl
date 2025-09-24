@@ -90,14 +90,14 @@ func main() {
 	defer stop()
 
 	if err := run(ctx); err != nil {
-		fmt.Fprintf(os.Stderr, "* ERROR: %s\n", err)
+		_, _ = fmt.Fprintf(os.Stderr, "* ERROR: %s\n", err)
 		os.Exit(1)
 	}
 }
 
 func run(ctx context.Context) error {
 	cArgs := make([]string, 0)
-	flags.ParseAll(os.Args[1:], func(flag *pflag.Flag, value string) error {
+	_ = flags.ParseAll(os.Args[1:], func(flag *pflag.Flag, value string) error {
 		if flag.Name == "silent" {
 			return nil // --silent is added later to all curl arguments so don't add here
 		}
@@ -153,12 +153,7 @@ func run(ctx context.Context) error {
 		return fmt.Errorf("malformed URL: %w", err)
 	}
 
-	podName, podPort, err := net.SplitHostPort(requestURL.Host)
-	if err != nil {
-		podName = requestURL.Host
-		podPort = ""
-	}
-
+	// Initialize kube config and client before parsing host/port/resource
 	kubeConfig := config.ToRawKubeConfigLoader()
 	namespace, _, err := kubeConfig.Namespace()
 	if err != nil {
@@ -171,6 +166,81 @@ func run(ctx context.Context) error {
 	client, err := kubernetes.NewForConfig(restConfig)
 	if err != nil {
 		return err
+	}
+
+	// Parse host and port, support <type>/<name>[:port] in host or host as type and first path segment as name
+	hostPort := requestURL.Host
+	var podName, podPort string
+	var resourceType, resourceName string
+	isResource := false
+	// Check if host is a resource type or abbreviation
+	if canonicalType, ok := resourceTypeMap[strings.ToLower(hostPort)]; ok && requestURL.Path != "" {
+		// host is resource type, first path segment is resource name (and maybe :port)
+		segments := strings.SplitN(strings.TrimLeft(requestURL.Path, "/"), "/", 2)
+		resourceAndMaybePort := segments[0]
+		resourceType = canonicalType
+		if colonIdx := strings.LastIndex(resourceAndMaybePort, ":"); colonIdx > -1 {
+			resourceName = resourceAndMaybePort[:colonIdx]
+			podPort = resourceAndMaybePort[colonIdx+1:]
+		} else {
+			resourceName = resourceAndMaybePort
+		}
+		isResource = true
+		// Remove the resource segment from the path for the actual HTTP request
+		if len(segments) > 1 {
+			requestURL.Path = "/" + segments[1]
+		} else {
+			requestURL.Path = "/"
+		}
+		if debug {
+			_, _ = fmt.Fprintf(os.Stderr, "DEBUG: resourceType(from host)=%q, resourceName=%q, podPort=%q, newPath=%q\n", resourceType, resourceName, podPort, requestURL.Path)
+		}
+	} else if idx := strings.Index(hostPort, "/"); idx >= 0 {
+		// Looks like <type>/<name>[:port] in host
+		resourceAndMaybePort := hostPort
+		resource := resourceAndMaybePort
+		if colonIdx := strings.LastIndex(resourceAndMaybePort, ":"); colonIdx > -1 && colonIdx > idx {
+			resource = resourceAndMaybePort[:colonIdx]
+			podPort = resourceAndMaybePort[colonIdx+1:]
+		}
+		resourceParts := strings.SplitN(resource, "/", 2)
+		if len(resourceParts) == 2 {
+			resourceType, resourceName = resourceParts[0], resourceParts[1]
+			isResource = true
+			if debug {
+				_, _ = fmt.Fprintf(os.Stderr, "DEBUG: resourceType=%q, resourceName=%q, podPort=%q\n", resourceType, resourceName, podPort)
+			}
+		} else {
+			return fmt.Errorf("invalid resource format: %s", resource)
+		}
+	} else {
+		// podname[:port]
+		var err error
+		podName, podPort, err = net.SplitHostPort(hostPort)
+		if err != nil {
+			podName = hostPort
+			podPort = ""
+		}
+		if debug {
+			_, _ = fmt.Fprintf(os.Stderr, "DEBUG: podName=%q, podPort=%q\n", podName, podPort)
+		}
+	}
+
+	if isResource {
+		if debug || isVerbose(cArgs) {
+			_, _ = fmt.Fprintf(os.Stderr, "Resolving resource: type=%s, name=%s, port=%s\n", resourceType, resourceName, podPort)
+		}
+		pods, resolvedPodName, err := resolvePodFromResource(ctx, client, namespace, resourceType, resourceName)
+		if err != nil {
+			return err
+		}
+		if debug || isVerbose(cArgs) {
+			_, _ = fmt.Fprintf(os.Stderr, "Found %d pods, using pod/%s\n", len(pods), resolvedPodName)
+		}
+		podName = resolvedPodName
+		if debug {
+			_, _ = fmt.Fprintf(os.Stderr, "DEBUG: podName set to %q from resource\n", podName)
+		}
 	}
 
 	log.Printf("kubectl get -n %s pod/%s", namespace, podName)
@@ -342,6 +412,71 @@ func openPortForwarder(ctx context.Context, fwd portForwarderConfig) (*portforwa
 	}
 
 	return portforward.New(dialer, ports, ctx.Done(), make(chan struct{}), fwd.stdout, fwd.stderr)
+}
+
+// resourceTypeMap maps supported resource types and their abbreviations to canonical names
+var resourceTypeMap = map[string]string{
+	"deployment":   "deployment",
+	"deploy":       "deployment",
+	"deployments":  "deployment",
+	"ds":           "daemonset",
+	"daemonset":    "daemonset",
+	"daemonsets":   "daemonset",
+	"sts":          "statefulset",
+	"statefulset":  "statefulset",
+	"statefulsets": "statefulset",
+}
+
+// resolvePodFromResource finds a pod name for a given resource type and name in a namespace.
+func resolvePodFromResource(ctx context.Context, client *kubernetes.Clientset, namespace, resourceType, resourceName string) ([]corev1.Pod, string, error) {
+	canonicalType, ok := resourceTypeMap[strings.ToLower(resourceType)]
+	if !ok {
+		return nil, "", fmt.Errorf("unsupported resource type: %s", resourceType)
+	}
+	var labelSelector string
+	var err error
+
+	switch canonicalType {
+	case "deployment":
+		deployment, err := client.AppsV1().Deployments(namespace).Get(ctx, resourceName, metav1.GetOptions{})
+		if err != nil {
+			return nil, "", fmt.Errorf("failed to get deployment %s: %w", resourceName, err)
+		}
+		labelSelector = metav1.FormatLabelSelector(deployment.Spec.Selector)
+	case "daemonset":
+		daemonset, err := client.AppsV1().DaemonSets(namespace).Get(ctx, resourceName, metav1.GetOptions{})
+		if err != nil {
+			return nil, "", fmt.Errorf("failed to get daemonset %s: %w", resourceName, err)
+		}
+		labelSelector = metav1.FormatLabelSelector(daemonset.Spec.Selector)
+	case "statefulset":
+		sts, err := client.AppsV1().StatefulSets(namespace).Get(ctx, resourceName, metav1.GetOptions{})
+		if err != nil {
+			return nil, "", fmt.Errorf("failed to get statefulset %s: %w", resourceName, err)
+		}
+		labelSelector = metav1.FormatLabelSelector(sts.Spec.Selector)
+	}
+
+	podsList, err := client.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{
+		LabelSelector: labelSelector,
+	})
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to list pods for %s %s: %w", canonicalType, resourceName, err)
+	}
+	if len(podsList.Items) == 0 {
+		return nil, "", fmt.Errorf("no pods found for %s %s", canonicalType, resourceName)
+	}
+	return podsList.Items, podsList.Items[0].Name, nil
+}
+
+// isVerbose checks if -v or --verbose is present in curl args
+func isVerbose(args []string) bool {
+	for _, arg := range args {
+		if arg == "-v" || arg == "--verbose" {
+			return true
+		}
+	}
+	return false
 }
 
 type usageError string

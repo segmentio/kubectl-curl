@@ -16,3 +16,14 @@
 
 # Emacs
 *~
+
+# IDE directories
+.vscode
+.idea
+
+# vim swap
+[._]*.sw[a-p]
+[._]sw[a-p]
+
+# vim temporary
+*~
