@@ -49,7 +49,7 @@ This section records common use cases for this kubectl plugin.
 ### Collecting profiles of Go programs
 
 ```
-$ kubectl curl "http://{pod}/debug/pprof/profile?debug=1&seconds=10" > ./profile
+$ kubectl curl "http://{podname}/debug/pprof/profile?debug=1&seconds=10" > ./profile
 $ go tool pprof -http :6060 ./profile
 ```
 
@@ -57,7 +57,23 @@ $ go tool pprof -http :6060 ./profile
 
 ### Retrieving prometheus metrics
 
+All of these variants work:
+
 ```
-$ kubectl curl http://{pod}/metrics
+$ kubectl curl http://{podname}/metrics
 ...
+
+$ kubectl curl http://daemonset/{daemonsetname}/metrics
+...
+
+$ kubectl curl http://ds/{daemonsetname}/metrics
+...
+
+$ kubectl curl {podname}/metrics
+...
+
+$ kubectl curl daemonset/{daemonsetname}/metrics
+...
+
+$ kubectl curl ds/{daemonsetname}/metrics
 ```
