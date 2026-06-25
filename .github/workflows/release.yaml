@@ -7,7 +7,7 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest-large
 
     env:
       GOOS: ${{ matrix.os }}
@@ -29,15 +29,15 @@ jobs:
       run: echo ::set-output name=tag::${GITHUB_REF/refs\/tags\//}
 
     - name: Checkout
-      uses: actions/checkout@v2
+      uses: actions/checkout@ee0669bd1cc54295c223e0bb666b733df41de1c5  # v2
 
     - name: Setup Go
-      uses: actions/setup-go@v2
+      uses: actions/setup-go@bfdd3570ce990073878bf10f6b2d79082de49492  # v2
       with:
         go-version: 1.17.1
 
     - name: Cache Go
-      uses: actions/cache@v2
+      uses: actions/cache@8492260343ad570701412c2f464a5877dc76bace  # v2
       with:
         path: |
           ~/go/pkg/mod
@@ -57,22 +57,22 @@ jobs:
         tar czf $out.tar.gz $out LICENSE
 
     - name: Upload Artifacts
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
       with:
         name: kubectl-curl_${{ steps.version.outputs.tag }}_${{ env.GOOS }}_${{ env.GOARCH }}
         path: kubectl-curl_${{ steps.version.outputs.tag }}_${{ env.GOOS }}_${{ env.GOARCH }}.tar.gz
 
   release:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest-large
     needs: [build]
     steps:
     - name: Download Artifacts
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4
       with:
         path: .
 
     - name: Release Artifacts
-      uses: softprops/action-gh-release@v1
+      uses: softprops/action-gh-release@de2c0eb89ae2a093876385947365aca7b0e5f844  # v1
       with:
         generate_release_notes: true
         files: |
